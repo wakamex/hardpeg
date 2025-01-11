@@ -115,7 +115,7 @@
 
             try {
                 const query = `{
-                    markets(where: { chainId_in: [1] }) {
+                    markets(where: { chainId_in: [1] }, first: 1000) {
                         items {
                             id
                             uniqueKey
@@ -177,7 +177,6 @@
 
                 const { markets } = result.data;
                 
-                // Filter markets with hardcoded_oracle warning
                 const marketsWithWarning = markets.items
                     .filter(market => 
                         market.warnings?.some(warning => 
@@ -185,45 +184,6 @@
                         )
                     );
 
-                // Display results
-                const formatBigInt = (value) => {
-                    if (!value) return '0';
-                    return (BigInt(value) / BigInt(1e18)).toString();
-                };
-                
-                const formatPercent = (num) => (Number(num) * 100).toFixed(2) + '%';
-                const formatNumber = (num, divideByDecimals = true) => {
-                    if (!num) return '$0.00';
-                    const value = divideByDecimals ? Number(num) / 1e18 : Number(num);
-                    if (value >= 1000000) {
-                        return '$' + (value / 1000000).toFixed(2) + 'M';
-                    }
-                    if (value >= 1000) {
-                        return '$' + (value / 1000).toFixed(2) + 'k';
-                    }
-                    return '$' + value.toFixed(2);
-                };
-                const formatDate = (timestamp) => new Date(Number(timestamp) * 1000).toLocaleDateString();
-                
-                const formatMarketId = (market) => {
-                    const lltv = (Number(market.lltv) / 1e18 * 100).toFixed(0);
-                    const name = `${market.collateralAsset.symbol} / ${market.loanAsset.symbol} LLTV: ${lltv}%`;
-                    return `<a href="https://app.morpho.org/market?id=${market.uniqueKey}&network=mainnet" target="_blank" style="color: #0066cc; text-decoration: none;">
-                        ${name}
-                    </a>`;
-                };
-
-                const formatOracle = (oracle) => 
-                    `<a href="https://etherscan.io/address/${oracle.address}" target="_blank" style="color: #0066cc; text-decoration: none;">
-                        ${oracle.type}
-                    </a>`;
-
-                const formatVaultLink = (vault) => 
-                    `<a href="https://app.morpho.org/vault?vault=${vault.address}&network=mainnet" target="_blank" style="color: #0066cc; text-decoration: none;">
-                        ${vault.name}
-                    </a>`;
-
-                // Calculate summary statistics
                 const whitelistedCount = marketsWithWarning.filter(m => m.whitelisted).length;
                 
                 const supplyThresholds = [0, 10000, 100000, 1000000, 10000000];
@@ -263,7 +223,6 @@
                             ${marketsWithWarning.map(market => {
                                 const vaultsList = market.supplyingVaults
                                     .map(vault => {
-                                        // Find allocation for this market
                                         const allocation = vault.state?.allocation?.find(a => a.market.id === market.id);
                                         const amount = allocation?.supplyAssetsUsd || 0;
                                         return `${formatVaultLink(vault)} [${formatNumber(amount, false)}]`;
@@ -290,47 +249,38 @@
 
                 resultsDiv.innerHTML = html;
 
-                // Sort by Total Borrow descending by default
                 const table = document.querySelector('table');
                 const tbody = table.querySelector('tbody');
                 const rows = Array.from(tbody.querySelectorAll('tr'));
-                const borrowColumn = 4; // Index of Total Borrow column
+                const borrowColumn = 4; 
 
-                // Set initial sort direction on the header
                 const borrowHeader = table.querySelectorAll('th')[borrowColumn];
                 borrowHeader.setAttribute('data-sort', 'desc');
 
-                // Sort rows by borrow amount
                 rows.sort((a, b) => {
                     const aValue = Number(a.cells[borrowColumn].getAttribute('data-value')) || 0;
                     const bValue = Number(b.cells[borrowColumn].getAttribute('data-value')) || 0;
                     return bValue - aValue;
                 });
 
-                // Update table
                 tbody.innerHTML = '';
                 rows.forEach(row => tbody.appendChild(row));
 
-                // Add click handlers for sorting
                 document.querySelectorAll('th').forEach((th, index) => {
                     th.addEventListener('click', () => {
                         const table = th.closest('table');
                         const tbody = table.querySelector('tbody');
                         const rows = Array.from(tbody.querySelectorAll('tr'));
                         
-                        // Get current sort direction - default to desc on first click
                         const currentDir = th.getAttribute('data-sort');
                         const newDir = !currentDir ? 'desc' : currentDir === 'desc' ? 'asc' : 'desc';
                         
-                        // Reset all headers
                         table.querySelectorAll('th').forEach(header => {
                             header.removeAttribute('data-sort');
                         });
                         
-                        // Set new sort direction
                         th.setAttribute('data-sort', newDir);
                         
-                        // Sort rows
                         rows.sort((a, b) => {
                             const aCell = a.cells[index];
                             const bCell = b.cells[index];
@@ -348,7 +298,6 @@
                                 : bValue.localeCompare(aValue);
                         });
                         
-                        // Update table
                         tbody.innerHTML = '';
                         rows.forEach(row => tbody.appendChild(row));
                     });
@@ -360,7 +309,43 @@
             }
         }
 
-        // Run query immediately when page loads
+        const formatBigInt = (value) => {
+            if (!value) return '0';
+            return (BigInt(value) / BigInt(1e18)).toString();
+        };
+        
+        const formatPercent = (num) => (Number(num) * 100).toFixed(2) + '%';
+        const formatNumber = (num, divideByDecimals = true) => {
+            if (!num) return '$0.00';
+            const value = divideByDecimals ? Number(num) / 1e18 : Number(num);
+            if (value >= 1000000) {
+                return '$' + (value / 1000000).toFixed(2) + 'M';
+            }
+            if (value >= 1000) {
+                return '$' + (value / 1000).toFixed(2) + 'k';
+            }
+            return '$' + value.toFixed(2);
+        };
+        const formatDate = (timestamp) => new Date(Number(timestamp) * 1000).toLocaleDateString();
+        
+        const formatMarketId = (market) => {
+            const lltv = (Number(market.lltv) / 1e18 * 100).toFixed(0);
+            const name = `${market.collateralAsset.symbol} / ${market.loanAsset.symbol} LLTV: ${lltv}%`;
+            return `<a href="https://app.morpho.org/market?id=${market.uniqueKey}&network=mainnet" target="_blank" style="color: #0066cc; text-decoration: none;">
+                ${name}
+            </a>`;
+        };
+
+        const formatOracle = (oracle) => 
+            `<a href="https://etherscan.io/address/${oracle.address}" target="_blank" style="color: #0066cc; text-decoration: none;">
+                ${oracle.type}
+            </a>`;
+
+        const formatVaultLink = (vault) => 
+            `<a href="https://app.morpho.org/vault?vault=${vault.address}&network=mainnet" target="_blank" style="color: #0066cc; text-decoration: none;">
+                ${vault.name}
+            </a>`;
+
         document.addEventListener('DOMContentLoaded', queryMarkets);
     </script>
 </body>
